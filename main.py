@@ -4,14 +4,10 @@ import json
 from dataclasses import dataclass
 import random
 import string
+import argparse
 
 import requests
 
-query = 'anime'
-parallel_downloads = 5
-name_len = 10
-out_dir = pathlib.Path('~/d/wallpapers').expanduser()
-aspect_ratio = '16:9'
 
 @dataclass
 class Wallpaper:
@@ -36,7 +32,7 @@ def download_wallpaper(wallpaper: Wallpaper, out: pathlib.Path):
     with open(out, 'wb') as file:
         file.write(data)
 
-def download_all_worker(wallpapers: multiprocessing.Queue):
+def download_all_worker(wallpapers: multiprocessing.Queue, out_dir: pathlib.Path,  name_len: int):
     while not wallpapers.empty():
         wallpaper = wallpapers.get()
         print(f'[START] Download wallpaper {wallpaper.path} with dimensions {wallpaper.dimensions}...')
@@ -45,7 +41,7 @@ def download_all_worker(wallpapers: multiprocessing.Queue):
         download_wallpaper(wallpaper, out_dir / f'{name}.{extension}')
         print(f'[FINISH] Download wallpaper {wallpaper.path} with dimensions {wallpaper.dimensions}...')
 
-def download_all(wallpapers_list: list[Wallpaper]):
+def download_all(wallpapers_list: list[Wallpaper], parallel_downloads: int, out_dir: pathlib.Path, name_len: int):
     wallpapers = multiprocessing.Queue()
 
     for wallpaper in wallpapers_list:
@@ -53,7 +49,7 @@ def download_all(wallpapers_list: list[Wallpaper]):
 
     workers: list[multiprocessing.Process] = []
     for _ in range(parallel_downloads):
-        workers.append(multiprocessing.Process(target=download_all_worker, args=(wallpapers,)))
+        workers.append(multiprocessing.Process(target=download_all_worker, args=(wallpapers, out_dir, name_len)))
 
     for worker in workers:
         worker.start()
@@ -61,4 +57,13 @@ def download_all(wallpapers_list: list[Wallpaper]):
     for worker in workers:
         worker.join()
 
-download_all(search_wallpapers(query, aspect_ratio))
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('query')
+    parser.add_argument('destination')
+    parser.add_argument('-p', '--parallel-downloads', default=5, dest='parallel')
+    parser.add_argument('-l', '--name-length', default=10, dest='length')
+    parser.add_argument('-r', '--ratio')
+    args = parser.parse_args()
+
+    download_all(search_wallpapers(args.query, args.ratio), args.parallel, pathlib.Path(args.destination).expanduser(), args.length)
